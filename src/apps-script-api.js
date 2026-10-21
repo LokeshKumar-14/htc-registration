@@ -168,6 +168,6 @@ export function confirmedRegistrationResponse(result) {
 }
 
 export function screenshotReferenceFromResponse(result) {
-  const reference = result?.screenshotReference || result?.fileId;
+  const reference = result?.screenshotReference;
   return typeof reference === "string" && reference.length > 0 ? reference : "";
 }

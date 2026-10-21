@@ -80,6 +80,41 @@ test("Cyclothon has no team name and Cricket sends payment reference and amount"
   assert.equal(cricket.screenshotReference, "drive-file-id");
 });
 
+test("passes the exact Drive screenshotReference through the final Cricket JSON payload", async () => {
+  const registrationId = "33333333-3333-4333-8333-333333333333";
+  const driveFileId = "1AbCdEfGhIjKlMnOpQrStUvWxYz012345";
+  const parsedReference = screenshotReferenceFromResponse({
+    success: true,
+    screenshotReference: driveFileId,
+    fileId: "wrong-file-reference",
+  });
+  assert.equal(parsedReference, driveFileId);
+  assert.equal(screenshotReferenceFromResponse({ success: true, fileId: driveFileId }), "");
+
+  const payload = registrationPayload(
+    "cricket",
+    registrationId,
+    sampleState("cricket", ["a", "b", "c", "d", "e"]),
+    parsedReference,
+  );
+  const originalFetch = globalThis.fetch;
+  let serializedPayload;
+  globalThis.fetch = async (_url, options) => {
+    serializedPayload = JSON.parse(options.body);
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  };
+  try {
+    await appsScriptRequest(payload);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(serializedPayload.registrationId, registrationId);
+  assert.equal(serializedPayload.event, "cricket");
+  assert.equal(serializedPayload.screenshotReference, driveFileId);
+  assert.equal(serializedPayload.screenshotReference, payload.screenshotReference);
+});
+
 test("uses a CORS-safelisted text/plain POST and recognizes only explicit success", async () => {
   const originalFetch = globalThis.fetch;
   let seen;

@@ -148,6 +148,8 @@ test("Drive upload helper stores private screenshot bytes and returns an idempot
   assert.equal(first.success, true);
   assert.match(first.screenshotReference, /^file-/);
   const [file] = [...context.__files.values()];
+  assert.equal(first.screenshotReference, file.getId());
+  assert.notEqual(first.screenshotReference, file.name);
   assert.deepEqual(Array.from(file.bytes), Array.from(PNG_BYTES));
   assert.equal(file.sharingAccess, "PRIVATE");
   assert.equal(file.sharingPermission, "NONE");
