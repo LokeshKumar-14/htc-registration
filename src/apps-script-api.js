@@ -14,6 +14,27 @@ const YEAR_VALUES = {
 };
 
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+const DEVELOPMENT_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+export function backendEventKey(eventKey) {
+  const event = EVENT_KEYS[eventKey];
+  if (!event) throw new AppsScriptRequestError("This event is not supported.");
+  return event;
+}
+
+export function normalizeRegistrationPayloadEvent(eventKey, payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new AppsScriptRequestError("The saved registration data is invalid. Review this event and try again.");
+  }
+  const event = backendEventKey(eventKey);
+  return payload.event === event ? payload : { ...payload, event };
+}
+
+function logDevelopmentEvent(payload) {
+  if (typeof location !== "undefined" && DEVELOPMENT_HOSTS.has(location.hostname)) {
+    console.debug("[HTC registration] Apps Script event key:", payload.event || "(upload action)");
+  }
+}
 
 export class AppsScriptRequestError extends Error {
   constructor(message, { uncertain = false, response = null } = {}) {
@@ -46,6 +67,7 @@ export function registrationPayload(eventKey, registrationId, state, screenshotR
 }
 
 export async function appsScriptRequest(payload, { timeoutMs = 60_000 } = {}) {
+  logDevelopmentEvent(payload);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response;
@@ -132,6 +154,7 @@ export async function uploadPaymentScreenshot(file, registrationId, uploadId) {
   ]);
   return appsScriptRequest({
     action: "uploadScreenshot",
+    event: backendEventKey("cricket"),
     registrationId,
     uploadId,
     mimeType: file.type,

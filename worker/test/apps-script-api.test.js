@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   AppsScriptRequestError,
+  backendEventKey,
   appsScriptRequest,
   confirmedRegistrationResponse,
+  normalizeRegistrationPayloadEvent,
   registrationPayload,
   screenshotReferenceFromResponse,
   validateScreenshot,
@@ -40,6 +42,31 @@ test("maps frontend event and participant fields to the Apps Script schema", () 
   assert.equal(payload.teamName, "HTC Warriors");
 });
 
+test("all frontend event keys serialize to exact Apps Script event keys", () => {
+  const cases = [
+    ["cricket", "cricket", ["a", "b", "c", "d", "e"]],
+    ["football", "football", ["a", "b", "c", "d", "e"]],
+    ["cyclothon", "cyclothon", ["a"]],
+    ["treasure", "treasurehunt", ["a", "b", "c", "d"]],
+  ];
+  for (const [frontendKey, backendKey, selected] of cases) {
+    const payload = registrationPayload(frontendKey, "11111111-1111-4111-8111-111111111111", sampleState(frontendKey, selected));
+    assert.equal(payload.event, backendKey, `${frontendKey} must serialize as ${backendKey}`);
+    assert.equal(backendEventKey(frontendKey), backendKey);
+    const legacyPayload = {
+      ...payload,
+      event: frontendKey === "treasure" ? "Treasure Hunt" : frontendKey[0].toUpperCase() + frontendKey.slice(1),
+      screenshotReference: frontendKey === "cricket" ? "preserved-drive-reference" : undefined,
+      retryMarker: "preserved",
+    };
+    const normalized = normalizeRegistrationPayloadEvent(frontendKey, legacyPayload);
+    assert.equal(normalized.event, backendKey);
+    assert.equal(normalized.registrationId, payload.registrationId);
+    assert.equal(normalized.retryMarker, "preserved");
+    if (frontendKey === "cricket") assert.equal(normalized.screenshotReference, "preserved-drive-reference");
+  }
+});
+
 test("Cyclothon has no team name and Cricket sends payment reference and amount", () => {
   const cyclothon = registrationPayload("cyclothon", "22222222-2222-4222-8222-222222222222", sampleState("cyclothon", ["a"]));
   assert.equal(cyclothon.event, "cyclothon");
@@ -74,6 +101,65 @@ test("uses a CORS-safelisted text/plain POST and recognizes only explicit succes
   assert.equal(confirmedRegistrationResponse({ alreadySaved: true }), true);
   assert.equal(confirmedRegistrationResponse({ success: false }), false);
   assert.equal(screenshotReferenceFromResponse({ screenshotReference: "drive-id" }), "drive-id");
+});
+
+test("final POST bodies contain only the four backend event keys", async () => {
+  const originalFetch = globalThis.fetch;
+  const postedEvents = [];
+  globalThis.fetch = async (_url, options) => {
+    postedEvents.push(JSON.parse(options.body).event);
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  };
+  try {
+    for (const [key, expected, selected] of [
+      ["cricket", "cricket", ["a", "b", "c", "d", "e"]],
+      ["football", "football", ["a", "b", "c", "d", "e"]],
+      ["cyclothon", "cyclothon", ["a"]],
+      ["treasure", "treasurehunt", ["a", "b", "c", "d"]],
+    ]) {
+      const payload = registrationPayload(key, "11111111-1111-4111-8111-111111111111", sampleState(key, selected));
+      await appsScriptRequest(payload);
+      assert.equal(postedEvents.at(-1), expected);
+    }
+    assert.deepEqual(postedEvents, ["cricket", "football", "cyclothon", "treasurehunt"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("screenshot upload includes the Cricket event key and upload action", async () => {
+  const originalFetch = globalThis.fetch;
+  let sent;
+  globalThis.fetch = async (_url, options) => {
+    sent = JSON.parse(options.body);
+    return new Response(JSON.stringify({ success: true, screenshotReference: "drive-id" }), { status: 200 });
+  };
+  const originalFileReader = globalThis.FileReader;
+  globalThis.FileReader = class {
+    readAsDataURL(file) {
+      this.result = `data:${file.type};base64,cG5n`;
+      this.onload();
+    }
+  };
+  try {
+    const file = {
+      name: "receipt.png",
+      type: "image/png",
+      size: 4,
+      arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
+    };
+    const response = await (await import("../../src/apps-script-api.js")).uploadPaymentScreenshot(
+      file,
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    );
+    assert.equal(response.success, true);
+    assert.equal(sent.action, "uploadScreenshot");
+    assert.equal(sent.event, "cricket");
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.FileReader = originalFileReader;
+  }
 });
 
 test("network failures are marked uncertain for idempotent retries", async () => {

@@ -19,17 +19,31 @@ The deployed Apps Script source (`Code.gs`) is **not included in this website wo
 
 1. Open the Apps Script project that owns the configured deployment.
 2. Add the contents of `apps-script/DriveUpload.gs` as a new script file.
-3. Add these two lines at the very start of the existing `doPost(e)`, before its current parsing/validation logic; leave the rest of its current implementation unchanged:
+3. Insert these exact lines at the beginning of the existing `doPost(e)`, before its current JSON parsing, `validateRequest_()`, or participant validation. Do not replace the existing function or its registration body:
 
    ```javascript
    var uploadResponse = handleDriveScreenshotUploadRequest_(e);
-   if (uploadResponse) return uploadResponse;
+   if (uploadResponse !== null) return uploadResponse;
    ```
 
-   This handles `action: "uploadScreenshot"` uploads and validates that a Cricket registration references a private file created for its registration ID. Normal registration posts then continue through the existing validation and `createRows_` path.
+   For example, preserve the existing code after these new lines:
+
+   ```javascript
+   function doPost(e) {
+     var uploadResponse = handleDriveScreenshotUploadRequest_(e);
+     if (uploadResponse !== null) return uploadResponse;
+
+     // Existing code starts here. Keep your actual statements unchanged:
+     var data = JSON.parse(e.postData.contents);
+     validateRequest_(data);
+     // Existing idempotency and registration logic follows unchanged.
+   }
+   ```
+
+   The comment marks the insertion location only; retain your real current lines instead of copying invented registration logic. The handler function name is exactly `handleDriveScreenshotUploadRequest_`, matching the function declared in `DriveUpload.gs`. It recognizes `action: "uploadScreenshot"` and returns the Drive JSON response before registration validation, so an upload does not need a `participants` array. Normal registrations return `null` from this dispatch check and continue through the unchanged existing validation/idempotency/row-writing code. Cricket registrations also pass through checks that the payment is ₹50 and the screenshot reference belongs to a private upload for that registration ID.
 4. Confirm that the existing registration validator accepts these event keys and field names: `cricket`, `football`, `cyclothon`, `treasurehunt`; participant fields `rollNumber`, `name`, `phone`, `branch`, `year`; Cricket fields `paymentAmount` and `screenshotReference`; Treasure Hunt field `girlEligibilityConfirmed`. The frontend sends year values as `1st`, `2nd`, and `3rd`.
 5. Confirm the existing row writer stores the Cricket `screenshotReference` in the existing “Screenshot Reference” column and uses “Pending Verification” as the initial payment status. The upload helper returns a private Drive **file ID**, never a public URL or browser object URL. At registration time the helper verifies that the reference belongs to the private screenshot folder and its filename/metadata are tied to that registration ID; it also checks the Cricket amount is exactly ₹50 before allowing the existing writer to run.
-6. In Apps Script project settings, use the V8 runtime. Run `getPrivatePaymentFolder_` once from the editor, review and grant the requested Google Drive authorization, then deploy a **new version** of the web app.
+6. In Apps Script project settings, use the V8 runtime. Run `getPrivatePaymentFolder_` once from the editor, review and grant the requested Google Drive authorization. In **Deploy → Manage deployments**, edit the web app deployment, select **New version**, keep the existing deployment URL, and deploy. Grant the script owner Drive access when prompted. Test the new deployment URL before republishing.
 
 If your real `doPost` shape or request fields differ from the details in the supplied specification, reconcile that with the actual Code.gs before deployment. Since that file was not available here, preserving its hidden sheet headers and exact server validation cannot be verified from this workspace.
 
@@ -47,6 +61,14 @@ An anonymous Apps Script endpoint can be abused to consume the owner’s executi
 ## Frontend behavior and request limits
 
 `src/config.js` contains the supplied Apps Script URL as `APPS_SCRIPT_URL`. No spreadsheet credentials, Drive credentials, OAuth secrets, or service-account keys are sent to the browser.
+
+The registration code canonicalizes the event key immediately before sending, including drafts saved by an older frontend version that may still contain display labels such as `Cricket`, `Gully Football`, or `Treasure Hunt`. The screenshot upload action separately sends `event: "cricket"` as well as `action: "uploadScreenshot"`.
+
+### Event-key incident diagnosis
+
+The former screenshot-upload request sent `action: "uploadScreenshot"` but omitted `event`. A safe POST probe to the deployed endpoint reproduced the exact response `Invalid event.` for that shape. Sending the same non-persisting probe with `event: "cricket"` advanced to `Select at least one participant.`, confirming the event-key check then passes. That second response also shows the deployed `doPost` is currently treating the upload action as a registration request instead of dispatching it to a screenshot handler.
+
+The frontend fix now supplies `event: "cricket"` on the upload request, and canonicalizes any cached registration payload before retry. To make the upload actually store a screenshot, add and deploy the `handleDriveScreenshotUploadRequest_` hook described below. The current upload handler behavior has only been probed with invalid payloads; no file was uploaded. Do not bypass the backend participant check by adding participant data to the upload request.
 
 The browser checks file extension, MIME type, and a 5 MiB limit before upload. The Apps Script helper checks the decoded byte count and JPG/PNG/WebP file signatures again. Base64 expands the maximum 5 MiB image to about 6.67 MiB (plus small JSON fields). This keeps uploads small, but the full-size upload must still be tested against the owner’s actual Apps Script deployment and quotas. `fetch` does not expose upload-byte progress; the page shows an indeterminate uploading state instead.
 

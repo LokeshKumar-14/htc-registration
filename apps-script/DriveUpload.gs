@@ -25,6 +25,10 @@ function handleDriveScreenshotUploadRequest_(e) {
     return null;
   }
 
+  if (payload.event !== "cricket") {
+    return driveUploadJsonResponse_({ success: false, message: "Screenshot uploads are only supported for Cricket." });
+  }
+
   try {
     return uploadDriveScreenshot_(payload);
   } catch (error) {
@@ -39,7 +43,8 @@ function handleDriveScreenshotUploadRequest_(e) {
 function uploadDriveScreenshot_(payload) {
   const registrationId = String(payload.registrationId || "");
   const uploadId = String(payload.uploadId || "");
-  if (!/^[0-9a-f-]{36}$/i.test(registrationId) || !/^[0-9a-f-]{36}$/i.test(uploadId)) {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(registrationId) || !uuidPattern.test(uploadId)) {
     return driveUploadJsonResponse_({ success: false, message: "Invalid screenshot upload reference." });
   }
 
@@ -52,7 +57,7 @@ function uploadDriveScreenshot_(payload) {
   if (!/^[a-f0-9]{64}$/.test(sha256)) {
     return driveUploadJsonResponse_({ success: false, message: "The screenshot integrity check is invalid." });
   }
-  if (!base64 || base64.length > HTC_MAX_BASE64_LENGTH || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) {
+  if (base64.length > HTC_MAX_BASE64_LENGTH || !isValidBase64_(base64)) {
     return driveUploadJsonResponse_({ success: false, message: "The screenshot data is invalid or larger than 5 MB." });
   }
 
@@ -107,6 +112,23 @@ function uploadDriveScreenshot_(payload) {
   }
 }
 
+function isValidBase64_(value) {
+  if (!value || value.length % 4 !== 0) return false;
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const contentLength = value.length - padding;
+  for (let index = 0; index < contentLength; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!((code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+      || (code >= 48 && code <= 57) || code === 43 || code === 47)) {
+      return false;
+    }
+  }
+  for (let index = contentLength; index < value.length; index += 1) {
+    if (value.charAt(index) !== "=") return false;
+  }
+  return true;
+}
+
 function sha256Hex_(bytes) {
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
     .map(function (byte) {
@@ -121,7 +143,8 @@ function getPrivatePaymentFolder_() {
 }
 
 function isUploadedScreenshotReference_(registrationId, fileId) {
-  if (!/^[0-9a-f-]{36}$/i.test(String(registrationId || "")) || typeof fileId !== "string" || !fileId) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(registrationId || ""))
+    || typeof fileId !== "string" || !fileId) {
     return false;
   }
   try {

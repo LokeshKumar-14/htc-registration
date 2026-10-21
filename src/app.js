@@ -1,6 +1,7 @@
 import { API_BASE_URL, BRANCHES, EVENTS, EVENT_LINKS } from "./config.js";
 import {
   AppsScriptRequestError,
+  normalizeRegistrationPayloadEvent,
   confirmedRegistrationResponse,
   registrationPayload,
   screenshotReferenceFromResponse,
@@ -302,6 +303,7 @@ async function submitEvent(key) {
   if (!eventState.payload || (key === "cricket" && eventState.payload.screenshotReference !== eventState.screenshotReference)) {
     eventState.payload = registrationPayload(key, eventState.registrationId, state, eventState.screenshotReference);
   }
+  eventState.payload = normalizeRegistrationPayloadEvent(key, eventState.payload);
   submittingEvents.add(key);
   saveDraft();
   render();

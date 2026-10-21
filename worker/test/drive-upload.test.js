@@ -123,6 +123,7 @@ function createAppsScriptContext() {
 function uploadPayload(overrides = {}) {
   return {
     action: "uploadScreenshot",
+    event: "cricket",
     registrationId: REGISTRATION_ID,
     uploadId: UPLOAD_ID,
     mimeType: "image/png",
@@ -202,5 +203,22 @@ test("Drive upload handler rejects invalid MIME, malformed digest, and invalid i
   assert.equal(callHandler(context, uploadPayload({ mimeType: "image/gif" })).success, false);
   assert.equal(callHandler(context, uploadPayload({ sha256: "bad" })).success, false);
   assert.equal(callHandler(context, uploadPayload({ base64: Buffer.from("not PNG").toString("base64") })).success, false);
+  assert.equal(callHandler(context, uploadPayload({ event: "football" })).success, false);
+  assert.equal(callHandler(context, uploadPayload({ registrationId: "not-a-uuid" })).success, false);
+  assert.equal(context.__files.size, 0);
+});
+
+test("Drive upload handler rejects images over 5 MiB after base64 decoding", async () => {
+  const context = createAppsScriptContext();
+  const source = await readFile(new URL("../../apps-script/DriveUpload.gs", import.meta.url), "utf8");
+  vm.runInNewContext(source, context);
+  const tooLarge = Buffer.alloc(5 * 1024 * 1024 + 1);
+  PNG_BYTES.forEach((byte, index) => { tooLarge[index] = byte; });
+  const result = callHandler(context, uploadPayload({
+    sha256: createHash("sha256").update(tooLarge).digest("hex"),
+    base64: tooLarge.toString("base64"),
+  }));
+  assert.equal(result.success, false);
+  assert.match(result.message, /larger than 5 MB|format or size/);
   assert.equal(context.__files.size, 0);
 });
