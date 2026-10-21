@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="description" content="Register for HTC Club events at NIT Kurukshetra.">
+    <title>HTC Club | Event Registration</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="src/app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="HTC Club home">
+        <span class="brand-mark" aria-hidden="true">H</span>
+        <span><strong>HTC CLUB</strong><small>NIT KURUKSHETRA</small></span>
+      </a>
+      <span class="header-note">EVENT REGISTRATION · 2026</span>
+    </header>
+    <main id="app" class="page-shell" aria-live="polite">
+      <div class="loading-card"><span class="spinner" aria-hidden="true"></span>Loading registration…</div>
+    </main>
+    <footer class="site-footer">HTC Club <span aria-hidden="true">|</span> NIT Kurukshetra</footer>
+    <dialog id="student-modal" class="modal">
+      <form id="student-modal-form" method="dialog" novalidate>
+        <div class="modal-heading">
+          <div><p class="eyebrow">TREASURE HUNT TEAM</p><h2>Add a student</h2></div>
+          <button type="button" class="icon-button" data-close-modal aria-label="Close">×</button>
+        </div>
+        <div class="field-grid">
+          <label>Roll number<input name="rollNumber" autocomplete="off" required></label>
+          <label>Full name<input name="fullName" autocomplete="name" required></label>
+          <label>Phone number<input name="phone" type="tel" autocomplete="tel" required></label>
+          <label>Branch<select name="branch" required></select></label>
+          <label class="other-branch-field hidden">Other branch<input name="otherBranch"></label>
+          <label>Year<select name="year" required><option value="">Select year</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option></select></label>
+        </div>
+        <p class="form-error" data-modal-error role="alert"></p>
+        <div class="modal-actions"><button type="button" class="button button-secondary" data-close-modal>Cancel</button><button type="submit" class="button button-primary">Add student</button></div>
+      </form>
+    </dialog>
+  </body>
+</html>

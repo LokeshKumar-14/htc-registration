@@ -1,0 +1,17 @@
+name = "htc-registration-api"
+main = "src/index.js"
+compatibility_date = "2026-10-21"
+compatibility_flags = ["nodejs_compat"]
+
+[[r2_buckets]]
+binding = "PRIVATE_FILES"
+bucket_name = "htc-registration-private"
+
+[vars]
+ALLOWED_ORIGIN = "https://YOUR_GITHUB_USERNAME.github.io"
+GITHUB_OWNER = "YOUR_GITHUB_USERNAME"
+GITHUB_REPOSITORY = "htc-registration-data"
+GITHUB_BRANCH = "main"
+GITHUB_WORKBOOK_PATH = "HTC_Registrations.xlsx"
+ACCESS_TEAM_DOMAIN = "YOUR_TEAM.cloudflareaccess.com"
+ACCESS_AUD = "YOUR_CLOUDFLARE_ACCESS_APPLICATION_AUD"

@@ -1,0 +1,20 @@
+{
+  "name": "htc-registration-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "init-workbook": "node scripts/init-workbook.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}
