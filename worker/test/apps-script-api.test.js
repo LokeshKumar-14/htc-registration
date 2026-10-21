@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { APPS_SCRIPT_URL } from "../../src/config.js";
 import {
   AppsScriptRequestError,
   backendEventKey,
@@ -130,14 +132,16 @@ test("final POST bodies contain only the four backend event keys", async () => {
 test("screenshot upload includes the Cricket event key and upload action", async () => {
   const originalFetch = globalThis.fetch;
   let sent;
-  globalThis.fetch = async (_url, options) => {
+  let seenUrl;
+  globalThis.fetch = async (url, options) => {
+    seenUrl = url;
     sent = JSON.parse(options.body);
     return new Response(JSON.stringify({ success: true, screenshotReference: "drive-id" }), { status: 200 });
   };
   const originalFileReader = globalThis.FileReader;
   globalThis.FileReader = class {
     readAsDataURL(file) {
-      this.result = `data:${file.type};base64,cG5n`;
+      this.result = `data:${file.type};base64,AQIDBA==`;
       this.onload();
     }
   };
@@ -154,8 +158,20 @@ test("screenshot upload includes the Cricket event key and upload action", async
       "22222222-2222-4222-8222-222222222222",
     );
     assert.equal(response.success, true);
-    assert.equal(sent.action, "uploadScreenshot");
-    assert.equal(sent.event, "cricket");
+    assert.deepEqual(sent, {
+      action: "uploadScreenshot",
+      event: "cricket",
+      registrationId: "11111111-1111-4111-8111-111111111111",
+      uploadId: "22222222-2222-4222-8222-222222222222",
+      mimeType: "image/png",
+      sha256: createHash("sha256").update(Buffer.from([1, 2, 3, 4])).digest("hex"),
+      base64: "AQIDBA==",
+    });
+    assert.equal(seenUrl, APPS_SCRIPT_URL);
+    const uploadUrl = new URL(seenUrl);
+    assert.equal(uploadUrl.hostname, "script.google.com");
+    assert.match(uploadUrl.pathname, /^\/macros\/s\/[^/]+\/exec$/);
+    assert.doesNotMatch(uploadUrl.pathname, /library/i);
   } finally {
     globalThis.fetch = originalFetch;
     globalThis.FileReader = originalFileReader;

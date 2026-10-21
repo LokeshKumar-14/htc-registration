@@ -154,7 +154,7 @@ export async function uploadPaymentScreenshot(file, registrationId, uploadId) {
   ]);
   return appsScriptRequest({
     action: "uploadScreenshot",
-    event: backendEventKey("cricket"),
+    event: EVENT_KEYS.cricket,
     registrationId,
     uploadId,
     mimeType: file.type,
