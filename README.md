@@ -16,7 +16,7 @@ The frontend posts JSON using `Content-Type: text/plain;charset=UTF-8` to avoid 
 
 ## Apps Script integration
 
-The deployed Apps Script source (`Code.gs`) is not included in this workspace, so its validation, sheet headers, and idempotency behavior cannot be inspected or changed here. Keep the existing registration logic and verify it against the current frontend payload before deployment.
+The complete Apps Script registration source is in `apps-script/Code.gs`. It requires and saves `collegeName`, accepts Cricket registrations without payment or screenshot fields, and appends the college header to existing sheets without rewriting their existing data. `apps-script/DriveUpload.gs` must also be present in the Apps Script project because `doPost` dispatches its optional legacy upload handler.
 
 The Apps Script registration handler must accept and persist `collegeName` in addition to the existing registration fields. It must not require `paymentAmount` or `screenshotReference` for Cricket. The frontend sends event keys `cricket`, `football`, `cyclothon`, and `treasurehunt`; participant fields are `rollNumber`, `name`, `phone`, `branch`, and `year`. Treasure Hunt also sends `girlEligibilityConfirmed`. Year values are `1st`, `2nd`, and `3rd`.
 
