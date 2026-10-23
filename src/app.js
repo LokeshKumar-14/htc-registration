@@ -139,6 +139,10 @@ function renderEvent(event, message = "") {
   }).join("")}</div>`;
   const eligibility = data.key === "treasure" ? `<label class="checkbox-note"><input type="checkbox" data-eligibility ${state.eligibilityConfirmed ? "checked" : ""} ${saved ? "disabled" : ""}><span>I confirm that my team includes at least one girl. This is a self-declaration; eligibility is not automatically gender-verified.</span></label>` : "";
   const receipt = saved ? `<p class="status-message">Registration saved successfully · Reference <strong>${escapeHtml(eventState.receipt?.registrationId || eventState.registrationId)}</strong></p>` : "";
+  const nextStage = STAGES[STAGES.findIndex(({ key }) => key === event) + 1]?.key || "thankyou";
+  const submitButton = saved
+    ? `<button class="button button-primary" type="button" data-next-stage="${escapeHtml(nextStage)}">Registration saved · Continue <span aria-hidden="true">→</span></button>`
+    : `<button class="button button-primary" type="button" data-submit-event="${escapeHtml(event)}" ${eventState.selected.length === 0 || submittingEvents.has(event) ? "disabled" : ""}>${submittingEvents.has(event) ? "Saving registration…" : eventState.payload ? "Retry Submit & Next" : "Submit & Next"} <span aria-hidden="true">→</span></button>`;
   return `<p class="eyebrow">EVENT REGISTRATION</p><h1>${escapeHtml(data.title)}</h1>
     <p class="intro">${escapeHtml(data.description)}</p>
     <section class="card">
@@ -150,24 +154,30 @@ function renderEvent(event, message = "") {
       ${data.key === "treasure" ? '<button type="button" class="button button-secondary" data-add-student>Add student</button>' : ""}
       ${eligibility}${receipt}
       ${message ? `<p class="status-message error" role="alert">${escapeHtml(message)}</p>` : ""}
-      <div class="button-row"><button class="button button-secondary" type="button" data-skip ${saved || eventState.payload || submittingEvents.has(event) ? "disabled" : ""}>Skip event</button><button class="button button-primary" type="button" data-submit-event="${escapeHtml(event)}" ${saved || eventState.selected.length === 0 || submittingEvents.has(event) ? "disabled" : ""}>${saved ? "Registration saved" : submittingEvents.has(event) ? "Saving registration…" : eventState.payload ? "Retry Submit & Next" : "Submit & Next"} <span aria-hidden="true">→</span></button></div>
+      <div class="button-row"><button class="button button-secondary" type="button" data-skip ${saved || eventState.payload || submittingEvents.has(event) ? "disabled" : ""}>Skip event</button>${submitButton}</div>
     </section>`;
 }
 
 function renderThanks() {
   const successful = EVENTS.filter(({ key }) => state.events[key].status === "completed");
   const skipped = EVENTS.filter(({ key }) => state.events[key].status === "skipped");
+  const unregistered = EVENTS.filter(({ key }) => state.events[key].status !== "completed");
   const statusList = successful.map(({ key, title }) => {
     const result = state.events[key].receipt;
     return `<li><strong>${escapeHtml(title)}</strong> — Reference ${escapeHtml(result?.registrationId || state.events[key].registrationId)}</li>`;
   }).join("");
   const skippedList = skipped.map(({ title }) => `<li>${escapeHtml(title)} — skipped</li>`).join("");
+  const unregisteredEvents = unregistered.map(({ key, title }) =>
+    `<button class="button button-secondary" type="button" data-go-stage="${escapeHtml(key)}">Register for ${escapeHtml(title)} <span aria-hidden="true">→</span></button>`,
+  ).join("");
   const links = EVENT_LINKS.map(({ name, url }) => `<a class="event-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(name)}</strong><span class="button button-primary">Join WhatsApp group <span aria-hidden="true">↗</span></span></a>`).join("");
   return `<p class="eyebrow">REGISTRATION COMPLETE</p><h1>Thank You for Registering!</h1>
+    <a class="instagram-follow" href="https://www.instagram.com/htc.nitkkr?vrfl=YXp6aGQycGJrcWZ6" target="_blank" rel="noopener noreferrer">Follow our Instagram page <span aria-hidden="true">↗</span></a>
     <p class="intro">Thank you for being part of HTC Club, NIT Kurukshetra.<br><br>Your registration has been submitted successfully. We look forward to seeing you at the events.<br><br>Stay active, stay adventurous, and make memories with HTC!</p>
     <section class="card"><h2>Your registration summary</h2>
       ${successful.length ? `<h3>Successfully registered</h3><ul>${statusList}</ul>` : '<p class="muted">No event registrations were submitted.</p>'}
       ${skipped.length ? `<h3>Skipped events</h3><ul>${skippedList}</ul>` : ""}
+      ${unregistered.length ? `<h2 style="margin-top:26px">Register for another event</h2><p class="muted">You can still register for these events:</p><div class="button-row event-registration-links">${unregisteredEvents}</div>` : ""}
       <h2 style="margin-top:26px">Explore the events</h2><div class="event-card-grid">${links}</div>
     </section>`;
 }
@@ -244,8 +254,9 @@ function openStudentModal(student = null) {
 }
 
 function goToStage(key) {
-  const target = STAGES.findIndex(({ key: itemKey }) => itemKey === key);
-  if (target < 0 || (state.currentStage !== "thankyou" && target > currentIndex())) return;
+  const target = key === "thankyou" ? STAGES.length : STAGES.findIndex(({ key: itemKey }) => itemKey === key);
+  const canContinueFromSavedEvent = state.events[state.currentStage]?.status === "completed";
+  if (target < 0 || (state.currentStage !== "thankyou" && target > currentIndex() && !canContinueFromSavedEvent)) return;
   state.currentStage = key;
   saveDraft();
   render();
@@ -386,6 +397,7 @@ app.addEventListener("click", async (event) => {
   const target = event.target.closest("button");
   if (!target) return;
   if (target.dataset.goStage) goToStage(target.dataset.goStage);
+  if (target.dataset.nextStage) goToStage(target.dataset.nextStage);
   if (target.hasAttribute("data-add-student")) openStudentModal();
   if (target.dataset.editStudent) openStudentModal(state.students.find(({ id }) => id === target.dataset.editStudent));
   if (target.dataset.removeStudent) {

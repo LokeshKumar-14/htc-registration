@@ -35,7 +35,7 @@ export const EVENTS = [
     description: "Love football? Bring your teammates and enjoy an energetic game of Gully Football. Compete with other students and show your teamwork.",
     contacts: [
       { name: "Urmil", phone: "9004283146" },
-      { name: "Kshitiz", phone: "98912 35789" },
+      { name: "Kshitiz", phone: "9891235789" },
     ],
   },
   {
@@ -43,15 +43,15 @@ export const EVENTS = [
     time: "6:00 AM – 11:30 AM", venue: "Market", individual: true,
     description: "Join Cyclothon, challenge yourself, and enjoy an exciting cycling race with fellow students.",
     contacts: [
-      { name: "Kunal Garg", phone: "+91 831 818 3998" },
+      { name: "Kunal Garg", phone: "+91 83181 83998" },
       { name: "Mithil Adapa", phone: "+91 90320 49299" },
     ],
   },
   {
-    key: "treasure", title: "Treasure Hunt", date: "25 October — Preliminary Round",
-    time: "10:00 AM", venue: "LHC 102", teamSize: 4,
+    key: "treasure", title: "Treasure Hunt", prize: "₹2,000", date: "31 October",
+    time: "9:30 AM – 2:30 PM", venue: "Campus-wide designated locations", teamSize: 4,
     final: "Final: 31 October · 9:30 AM – 2:30 PM · Campus-wide designated locations",
-    description: "Take part in an exciting campus-wide Treasure Hunt! Begin with the MCQ-based preliminary round. Selected teams will participate in the final round, explore designated campus locations, and complete the challenges. Follow the instructions communicated by the organizers and take the required group photographs at the designated locations.",
+    description: "Take part in an exciting campus-wide Treasure Hunt!, explore designated campus locations, and complete the challenges. Follow the instructions communicated by the organizers and take the required group photographs at the designated locations.",
     contacts: [
       { name: "Suyash", phone: "+91 96540 04537" },
       { name: "Shruti", phone: "+91 90349 26895" },
