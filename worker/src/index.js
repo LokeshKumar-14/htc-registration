@@ -7,7 +7,7 @@ const MAX_GITHUB_RETRIES = 5;
 const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const HEADERS = [
   "Registration ID", "Team Name", "Roll Number", "Student Name", "Phone Number", "Branch", "Year",
-  "Payment Amount", "Payment Status", "Submission Timestamp", "Screenshot Object Reference", "Eligibility Confirmation",
+  "Payment Amount", "Payment Status", "Submission Timestamp", "Screenshot Object Reference", "Eligibility Confirmation", "College Name",
 ];
 const ACCESS_KEYS_CACHE = { keys: null, fetchedAt: 0 };
 
@@ -65,11 +65,11 @@ function validateRegistration(body) {
   if (body.event !== "Cyclothon" && (typeof body.teamName !== "string" || !body.teamName.trim() || body.teamName.length > 80)) {
     throw new Error("A team name of 1–80 characters is required.");
   }
+  if (typeof body.collegeName !== "string" || !body.collegeName.trim() || body.collegeName.length > 120) {
+    throw new Error("A college name of 1–120 characters is required.");
+  }
   if (body.event === "Treasure Hunt" && body.eligibilityConfirmed !== true) {
     throw new Error("The Treasure Hunt eligibility declaration is required.");
-  }
-  if (body.event === "Cricket" && (typeof body.screenshotKey !== "string" || !body.screenshotKey.startsWith(`payments/${body.registrationId}/`))) {
-    throw new Error("A payment screenshot uploaded for this registration is required.");
   }
   const seenRollNumbers = new Set();
   const participants = body.participants.map((participant) => {
@@ -93,8 +93,9 @@ function validateRegistration(body) {
     registrationId: body.registrationId,
     event: body.event,
     teamName: body.event === "Cyclothon" ? "" : body.teamName.trim(),
+    collegeName: body.collegeName.trim(),
     participants,
-    screenshotKey: body.event === "Cricket" ? body.screenshotKey : "",
+    screenshotKey: "",
     eligibilityConfirmed: body.event === "Treasure Hunt",
   };
 }
@@ -112,7 +113,7 @@ function styleHeader(row) {
 function formatSheet(sheet) {
   sheet.columns = [
     { width: 38 }, { width: 24 }, { width: 18 }, { width: 27 }, { width: 18 }, { width: 30 },
-    { width: 16 }, { width: 16 }, { width: 23 }, { width: 27 }, { width: 55 }, { width: 26 },
+    { width: 16 }, { width: 16 }, { width: 23 }, { width: 27 }, { width: 55 }, { width: 26 }, { width: 30 },
   ];
   sheet.views = [{ state: "frozen", ySplit: 1 }];
   sheet.properties.defaultRowHeight = 21;
@@ -135,7 +136,15 @@ function verifyWorkbookSheets(workbook) {
   if (names.length !== EVENT_SHEETS.length || EVENT_SHEETS.some((name) => !names.includes(name))) {
     throw new Error("The stored workbook must contain exactly Cricket, Football, Cyclothon, and Treasure Hunt worksheets.");
   }
-  for (const sheet of workbook.worksheets) formatSheet(sheet);
+  for (const sheet of workbook.worksheets) {
+    formatSheet(sheet);
+    for (let rowIndex = 1; rowIndex <= sheet.rowCount; rowIndex += 1) {
+      const row = sheet.getRow(rowIndex);
+      if (row.getCell(1).value === HEADERS[0] && !row.getCell(HEADERS.length).value) {
+        row.getCell(HEADERS.length).value = HEADERS[HEADERS.length - 1];
+      }
+    }
+  }
 }
 
 async function decodeContent(response) {
@@ -217,11 +226,12 @@ function applyRegistration(workbook, registration) {
       safeCell(participant.phone),
       safeCell(participant.branch),
       safeCell(participant.year),
-      registration.event === "Cricket" ? 50 : "",
-      registration.event === "Cricket" ? "Pending Verification" : "",
+      "",
+      "",
       timestamp,
       registration.screenshotKey,
       registration.event === "Treasure Hunt" ? "Self-declared: at least one girl" : "",
+      safeCell(registration.collegeName),
     ]);
     row.eachCell({ includeEmpty: true }, (cell) => {
       cell.border = {
@@ -342,16 +352,12 @@ async function handleRegister(request, env) {
   }
   let queueKey;
   try {
-    if (registration.event === "Cricket" && !await env.PRIVATE_FILES.get(registration.screenshotKey)) {
-      return jsonResponse(request, env, 400, { error: "The Cricket payment screenshot is missing or expired. Please upload it again." });
-    }
     queueKey = await queueRegistration(env, registration);
     const result = await saveRegistration(env, registration);
     await env.PRIVATE_FILES.delete(queueKey);
     return jsonResponse(request, env, 200, {
       success: true,
       registrationId: registration.registrationId,
-      paymentStatus: registration.event === "Cricket" ? "Pending Verification" : undefined,
       duplicate: result.duplicate,
       submittedAt: new Date().toISOString(),
     });
@@ -413,12 +419,13 @@ async function readAllRegistrations(env, search, eventFilter) {
       if (row.getCell(1).value === "Registration ID" || !row.getCell(1).value || String(row.getCell(1).value).startsWith("Team Name:")) continue;
       const registrationId = String(row.getCell(1).value);
       const teamName = String(row.getCell(2).value || "");
+      const collegeName = String(row.getCell(13).value || "");
       const rollNumber = String(row.getCell(3).value || "");
       const studentName = String(row.getCell(4).value || "");
       if (row.getCell(1).value === HEADERS[0]) continue;
-      if (search && !`${teamName} ${rollNumber} ${studentName}`.toLowerCase().includes(search.toLowerCase())) continue;
+      if (search && !`${teamName} ${collegeName} ${rollNumber} ${studentName}`.toLowerCase().includes(search.toLowerCase())) continue;
       registrations.push({
-        event, registrationId, teamName, rollNumber, studentName,
+        event, registrationId, teamName, collegeName, rollNumber, studentName,
         paymentStatus: String(row.getCell(9).value || ""),
         screenshotKey: String(row.getCell(11).value || ""),
       });

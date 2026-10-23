@@ -27,7 +27,12 @@ export function normalizeRegistrationPayloadEvent(eventKey, payload) {
     throw new AppsScriptRequestError("The saved registration data is invalid. Review this event and try again.");
   }
   const event = backendEventKey(eventKey);
-  return payload.event === event ? payload : { ...payload, event };
+  const registration = { ...payload, event };
+  if (eventKey === "cricket") {
+    delete registration.paymentAmount;
+    delete registration.screenshotReference;
+  }
+  return registration;
 }
 
 function logDevelopmentEvent(payload) {
@@ -45,7 +50,7 @@ export class AppsScriptRequestError extends Error {
   }
 }
 
-export function registrationPayload(eventKey, registrationId, state, screenshotReference = "") {
+export function registrationPayload(eventKey, registrationId, state) {
   const event = EVENT_KEYS[eventKey];
   if (!event) throw new AppsScriptRequestError("This event is not supported.");
   const selectedIds = state.events[eventKey].selected;
@@ -54,6 +59,7 @@ export function registrationPayload(eventKey, registrationId, state, screenshotR
     registrationId,
     event,
     teamName: eventKey === "cyclothon" ? "" : state.teamName.trim(),
+    collegeName: state.collegeName.trim(),
     participants: participants.map((participant) => ({
       rollNumber: participant.rollNumber.trim(),
       name: participant.fullName.trim(),
@@ -61,7 +67,6 @@ export function registrationPayload(eventKey, registrationId, state, screenshotR
       branch: participant.branch.trim(),
       year: YEAR_VALUES[participant.year] || participant.year,
     })),
-    ...(eventKey === "cricket" ? { paymentAmount: 50, screenshotReference } : {}),
     ...(eventKey === "treasure" ? { girlEligibilityConfirmed: state.eligibilityConfirmed === true } : {}),
   };
 }

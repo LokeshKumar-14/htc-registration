@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { APPS_SCRIPT_URL } from "../../src/config.js";
+import { APPS_SCRIPT_URL, EVENTS, EVENT_LINKS } from "../../src/config.js";
 import {
   AppsScriptRequestError,
   backendEventKey,
@@ -16,6 +16,7 @@ import {
 function sampleState(eventKey, selected) {
   return {
     teamName: "HTC Warriors",
+    collegeName: "NIT Kurukshetra",
     eligibilityConfirmed: true,
     students: selected.map((id, index) => ({
       id,
@@ -28,6 +29,22 @@ function sampleState(eventKey, selected) {
     events: { [eventKey]: { selected } },
   };
 }
+
+test("event descriptions expose the requested contacts and WhatsApp group links", () => {
+  assert.deepEqual(EVENT_LINKS.map(({ name }) => name), ["Gully Cricket", "Gully Football", "Cyclothon", "Treasure Hunt"]);
+  assert.deepEqual(EVENT_LINKS.map(({ url }) => url), [
+    "https://chat.whatsapp.com/EmG0V4RLzsdKODSgQMeB0G?s=cl&p=a&mlu=4&ilr=4",
+    "https://chat.whatsapp.com/C116ueyemsL74eZUlwKUQi?s=cl&p=a&mlu=4&ilr=4",
+    "https://chat.whatsapp.com/LhBu3ErdUrh7HJCHUTBmfk?s=cl&p=a&mlu=4&ilr=4",
+    "https://chat.whatsapp.com/Gr3A5WJJotZGD9knnw1tBI?s=cl&p=a&mlu=4&ilr=4",
+  ]);
+  assert.deepEqual(EVENTS.map(({ title, contacts }) => [title, contacts.map(({ phone }) => phone)]), [
+    ["Gully Cricket", ["+91 89552 36226", "+91 70242 19084"]],
+    ["Gully Football", ["9004283146", "98912 35789"]],
+    ["Cyclothon", ["+91 831 818 3998", "+91 90320 49299"]],
+    ["Treasure Hunt", ["+91 96540 04537", "+91 90349 26895", "+91 83970 29501"]],
+  ]);
+});
 
 test("maps frontend event and participant fields to the Apps Script schema", () => {
   const payload = registrationPayload("treasure", "11111111-1111-4111-8111-111111111111", sampleState("treasure", ["a", "b", "c", "d"]));
@@ -65,38 +82,29 @@ test("all frontend event keys serialize to exact Apps Script event keys", () => 
     assert.equal(normalized.event, backendKey);
     assert.equal(normalized.registrationId, payload.registrationId);
     assert.equal(normalized.retryMarker, "preserved");
-    if (frontendKey === "cricket") assert.equal(normalized.screenshotReference, "preserved-drive-reference");
+    if (frontendKey === "cricket") {
+      assert.equal("screenshotReference" in normalized, false);
+      assert.equal("paymentAmount" in normalized, false);
+    }
   }
 });
 
-test("Cyclothon has no team name and Cricket sends payment reference and amount", () => {
+test("registration payloads include college name and Cricket has no payment fields", () => {
   const cyclothon = registrationPayload("cyclothon", "22222222-2222-4222-8222-222222222222", sampleState("cyclothon", ["a"]));
   assert.equal(cyclothon.event, "cyclothon");
   assert.equal(cyclothon.teamName, "");
+  assert.equal(cyclothon.collegeName, "NIT Kurukshetra");
   assert.equal(cyclothon.participants.length, 1);
-  const cricket = registrationPayload("cricket", "33333333-3333-4333-8333-333333333333", sampleState("cricket", ["a", "b", "c", "d", "e"]), "drive-file-id");
+  const cricket = registrationPayload("cricket", "33333333-3333-4333-8333-333333333333", sampleState("cricket", ["a", "b", "c", "d", "e"]));
   assert.equal(cricket.event, "cricket");
-  assert.equal(cricket.paymentAmount, 50);
-  assert.equal(cricket.screenshotReference, "drive-file-id");
+  assert.equal(cricket.collegeName, "NIT Kurukshetra");
+  assert.equal("paymentAmount" in cricket, false);
+  assert.equal("screenshotReference" in cricket, false);
 });
 
-test("passes the exact Drive screenshotReference through the final Cricket JSON payload", async () => {
+test("Cricket POST sends college name without payment or screenshot fields", async () => {
   const registrationId = "33333333-3333-4333-8333-333333333333";
-  const driveFileId = "1AbCdEfGhIjKlMnOpQrStUvWxYz012345";
-  const parsedReference = screenshotReferenceFromResponse({
-    success: true,
-    screenshotReference: driveFileId,
-    fileId: "wrong-file-reference",
-  });
-  assert.equal(parsedReference, driveFileId);
-  assert.equal(screenshotReferenceFromResponse({ success: true, fileId: driveFileId }), "");
-
-  const payload = registrationPayload(
-    "cricket",
-    registrationId,
-    sampleState("cricket", ["a", "b", "c", "d", "e"]),
-    parsedReference,
-  );
+  const payload = registrationPayload("cricket", registrationId, sampleState("cricket", ["a", "b", "c", "d", "e"]));
   const originalFetch = globalThis.fetch;
   let serializedPayload;
   globalThis.fetch = async (_url, options) => {
@@ -111,8 +119,9 @@ test("passes the exact Drive screenshotReference through the final Cricket JSON 
 
   assert.equal(serializedPayload.registrationId, registrationId);
   assert.equal(serializedPayload.event, "cricket");
-  assert.equal(serializedPayload.screenshotReference, driveFileId);
-  assert.equal(serializedPayload.screenshotReference, payload.screenshotReference);
+  assert.equal(serializedPayload.collegeName, "NIT Kurukshetra");
+  assert.equal("screenshotReference" in serializedPayload, false);
+  assert.equal("paymentAmount" in serializedPayload, false);
 });
 
 test("uses a CORS-safelisted text/plain POST and recognizes only explicit success", async () => {

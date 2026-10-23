@@ -169,33 +169,16 @@ test("Drive upload helper stores private screenshot bytes and returns an idempot
   assert.equal(context.__files.size, 1);
 });
 
-test("registration hook verifies private Cricket screenshot reference and payment amount", async () => {
+test("registration hook lets free Cricket registrations pass without a screenshot", async () => {
   const context = createAppsScriptContext();
   const source = await readFile(new URL("../../apps-script/DriveUpload.gs", import.meta.url), "utf8");
   vm.runInNewContext(source, context);
-  const upload = callHandler(context, uploadPayload());
-
-  const valid = callHandler(context, {
+  const registration = callHandler(context, {
     event: "cricket",
     registrationId: REGISTRATION_ID,
-    paymentAmount: 50,
-    screenshotReference: upload.screenshotReference,
   });
-  assert.equal(valid, null);
-  const fakeReference = callHandler(context, {
-    event: "cricket",
-    registrationId: REGISTRATION_ID,
-    paymentAmount: 50,
-    screenshotReference: "made-up-file-id",
-  });
-  assert.equal(fakeReference.success, false);
-  const wrongAmount = callHandler(context, {
-    event: "cricket",
-    registrationId: REGISTRATION_ID,
-    paymentAmount: 25,
-    screenshotReference: upload.screenshotReference,
-  });
-  assert.equal(wrongAmount.success, false);
+  assert.equal(registration, null);
+  assert.equal(context.__files.size, 0);
 });
 
 test("Drive upload handler rejects invalid MIME, malformed digest, and invalid image signatures", async () => {

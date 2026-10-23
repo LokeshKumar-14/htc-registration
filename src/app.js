@@ -4,9 +4,6 @@ import {
   normalizeRegistrationPayloadEvent,
   confirmedRegistrationResponse,
   registrationPayload,
-  screenshotReferenceFromResponse,
-  uploadPaymentScreenshot,
-  validateScreenshot,
   appsScriptRequest,
 } from "./apps-script-api.js";
 
@@ -15,7 +12,7 @@ const STAGES = [{ key: "details", label: "Student Details" }, ...EVENTS.map(({ k
 const app = document.querySelector("#app");
 const modal = document.querySelector("#student-modal");
 const modalForm = document.querySelector("#student-modal-form");
-const blankEvent = () => ({ status: "upcoming", selected: [], registrationId: "", payload: null, screenshotReference: "", uploadId: "", uploadPending: false, receipt: null });
+const blankEvent = () => ({ status: "upcoming", selected: [], registrationId: "", payload: null, receipt: null });
 
 function loadDraft() {
   try {
@@ -36,14 +33,12 @@ function loadDraft() {
         selected: Array.isArray(stored.selected) ? stored.selected.filter((id) => typeof id === "string" && students.some((student) => student.id === id)) : [],
         registrationId,
         payload,
-        screenshotReference: typeof stored.screenshotReference === "string" ? stored.screenshotReference : "",
-        uploadId: typeof stored.uploadId === "string" ? stored.uploadId : "",
-        uploadPending: stored.uploadPending === true,
         receipt: stored.receipt && typeof stored.receipt === "object" ? stored.receipt : null,
       }];
     }));
     return {
       teamName: typeof saved.teamName === "string" ? saved.teamName : "",
+      collegeName: typeof saved.collegeName === "string" ? saved.collegeName : "",
       students,
       currentStage: [...STAGES.map(({ key }) => key), "thankyou"].includes(saved.currentStage) ? saved.currentStage : "details",
       events,
@@ -51,14 +46,12 @@ function loadDraft() {
     };
   } catch (error) {
     console.error("Could not restore registration draft:", error);
-    return { teamName: "", students: [], currentStage: "details", events: Object.fromEntries(EVENTS.map(({ key }) => [key, blankEvent()])), eligibilityConfirmed: false };
+    return { teamName: "", collegeName: "", students: [], currentStage: "details", events: Object.fromEntries(EVENTS.map(({ key }) => [key, blankEvent()])), eligibilityConfirmed: false };
   }
 }
 
 let state = loadDraft();
 let editingStudentId = "";
-let previewUrl = "";
-let selectedScreenshot = null;
 const submittingEvents = new Set();
 
 function saveDraft() {
@@ -91,7 +84,7 @@ function currentIndex() {
 function renderProgress() {
   const index = currentIndex();
   return `<nav class="progress" aria-label="Registration progress">${STAGES.map((stage, stageIndex) => {
-    const status = stage.key === "details" && state.students.length > 0 && Boolean(state.teamName.trim())
+    const status = stage.key === "details" && state.students.length > 0 && Boolean(state.teamName.trim()) && Boolean(state.collegeName.trim())
       ? "completed"
       : state.events[stage.key]?.status;
     const active = stageIndex === index;
@@ -119,11 +112,12 @@ function renderDetails(message = "") {
     <section class="card">
       <div class="field-grid">
         <label class="full-width">Team name<input id="team-name" name="teamName" maxlength="80" value="${escapeHtml(state.teamName)}" placeholder="Enter one team name for this registration" autocomplete="organization"></label>
+        <label class="full-width college-field">College name<input id="college-name" name="collegeName" maxlength="120" value="${escapeHtml(state.collegeName)}" placeholder="Enter your college name" autocomplete="organization" required></label>
       </div>
       <div class="section-heading" style="margin-top:26px"><div><h2>Participants</h2><p>Add each student who may join an event. You can choose participants separately for each event.</p></div><button type="button" class="button button-secondary" data-add-student>Add student</button></div>
       <div class="participant-list">${students || '<p class="muted">No students added yet.</p>'}</div>
       ${message ? `<p class="status-message error" role="alert">${escapeHtml(message)}</p>` : ""}
-      <div class="button-row button-row-end"><button type="button" class="button button-primary" data-details-next ${state.students.length === 0 || !state.teamName.trim() ? "disabled" : ""}>Continue to events <span aria-hidden="true">→</span></button></div>
+      <div class="button-row button-row-end"><button type="button" class="button button-primary" data-details-next ${state.students.length === 0 || !state.teamName.trim() || !state.collegeName.trim() ? "disabled" : ""}>Continue to events <span aria-hidden="true">→</span></button></div>
     </section>`;
 }
 
@@ -138,22 +132,23 @@ function renderEvent(event, message = "") {
     const selected = eventState.selected.includes(student.id);
     return `<label class="participant select-row"><input type="checkbox" data-select-student="${escapeHtml(student.id)}" ${selected ? "checked" : ""} ${saved || eventState.payload || selected || eventState.selected.length < selectionLimit ? "" : "disabled"} ${saved || eventState.payload ? "disabled" : ""}><span class="participant-main"><span class="avatar">${escapeHtml(student.fullName.trim().charAt(0).toUpperCase() || "?")}</span><span><strong>${escapeHtml(student.fullName)}</strong><small>${escapeHtml(student.rollNumber)} · ${escapeHtml(student.branch)} · ${escapeHtml(student.year)}</small></span></span></label>`;
   }).join("");
-  const eventInfo = `<div class="event-meta">${data.prize ? `<span>Prize ${escapeHtml(data.prize)}</span>` : ""}<span>${escapeHtml(data.date)}</span><span>${escapeHtml(data.time)}</span><span>${escapeHtml(data.venue)}</span>${data.payment ? "<span>₹50 per team</span>" : ""}</div>${data.final ? `<p class="muted">${escapeHtml(data.final)}</p>` : ""}`;
-  const payment = data.payment ? `<div class="payment-card">
-      <div class="qr-wrap"><img src="assets/qrcode.png" alt="HTC event payment QR code" onerror="this.hidden=true;this.nextElementSibling.style.display='block'"><span class="qr-missing">Payment QR asset is not configured.<br>Provide <strong>assets/qrcode.png</strong>.</span></div>
-      <div class="payment-info"><p class="eyebrow">TEAM REGISTRATION FEE</p><h3>₹50 <span class="muted">/ team</span></h3><p>Upload a clear screenshot in which the transaction ID is clearly visible.</p><label>Upload payment screenshot<input id="payment-file" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" ${saved || (eventState.payload && eventState.screenshotReference) ? "disabled" : ""}></label><img class="file-preview" alt="Payment screenshot preview" ${previewUrl ? `src="${previewUrl}" style="display:block"` : ""}>${previewUrl && !saved && !eventState.payload ? '<button class="text-button danger" type="button" data-remove-screenshot>Remove or replace screenshot</button>' : ""}${eventState.screenshotReference ? '<p class="status-message">Screenshot saved privately · Payment Pending Verification</p>' : ""}</div>
-    </div>` : "";
+  const eventInfo = `<div class="event-meta">${data.prize ? `<span>Prize ${escapeHtml(data.prize)}</span>` : ""}<span>${escapeHtml(data.date)}</span><span>${escapeHtml(data.time)}</span><span>${escapeHtml(data.venue)}</span></div>${data.final ? `<p class="muted">${escapeHtml(data.final)}</p>` : ""}`;
+  const contacts = `<div class="event-contacts"><strong>Event contacts</strong>${data.contacts.map(({ name, phone }) => {
+    const tel = phone.replace(/[^\d+]/g, "");
+    return `<div class="event-contact"><span><strong>${escapeHtml(name)}</strong><small>${escapeHtml(phone)}</small></span><a class="button button-secondary" href="tel:${escapeHtml(tel)}" aria-label="Call ${escapeHtml(name)}">Call</a></div>`;
+  }).join("")}</div>`;
   const eligibility = data.key === "treasure" ? `<label class="checkbox-note"><input type="checkbox" data-eligibility ${state.eligibilityConfirmed ? "checked" : ""} ${saved ? "disabled" : ""}><span>I confirm that my team includes at least one girl. This is a self-declaration; eligibility is not automatically gender-verified.</span></label>` : "";
-  const receipt = saved ? `<p class="status-message">Registration saved successfully · Reference <strong>${escapeHtml(eventState.receipt?.registrationId || eventState.registrationId)}</strong>${data.payment ? " · Payment: Pending Verification" : ""}</p>` : "";
+  const receipt = saved ? `<p class="status-message">Registration saved successfully · Reference <strong>${escapeHtml(eventState.receipt?.registrationId || eventState.registrationId)}</strong></p>` : "";
   return `<p class="eyebrow">EVENT REGISTRATION</p><h1>${escapeHtml(data.title)}</h1>
     <p class="intro">${escapeHtml(data.description)}</p>
     <section class="card">
       <div class="section-heading"><div><h2>${isTeamEvent ? `${data.teamSize}-member team` : "Individual entry"}</h2><p>${isTeamEvent ? `Select exactly ${data.teamSize} participants. Your team name is <strong>${escapeHtml(state.teamName || "not set")}</strong>.` : "Select one or more participants. Each person is registered individually."}</p></div><span class="badge">${saved ? "Saved" : "Registration"}</span></div>
       ${eventInfo}
+      ${contacts}
       ${isTeamEvent ? `<p class="selection-count">${countLabel}: ${eventState.selected.length} / ${data.teamSize}</p>` : '<p class="selection-count">Select at least one participant</p>'}
       <div class="participant-list">${students || '<p class="muted">Add participants in Student Details before choosing an event.</p>'}</div>
       ${data.key === "treasure" ? '<button type="button" class="button button-secondary" data-add-student>Add student</button>' : ""}
-      ${payment}${eligibility}${receipt}
+      ${eligibility}${receipt}
       ${message ? `<p class="status-message error" role="alert">${escapeHtml(message)}</p>` : ""}
       <div class="button-row"><button class="button button-secondary" type="button" data-skip ${saved || eventState.payload || submittingEvents.has(event) ? "disabled" : ""}>Skip event</button><button class="button button-primary" type="button" data-submit-event="${escapeHtml(event)}" ${saved || eventState.selected.length === 0 || submittingEvents.has(event) ? "disabled" : ""}>${saved ? "Registration saved" : submittingEvents.has(event) ? "Saving registration…" : eventState.payload ? "Retry Submit & Next" : "Submit & Next"} <span aria-hidden="true">→</span></button></div>
     </section>`;
@@ -162,19 +157,18 @@ function renderEvent(event, message = "") {
 function renderThanks() {
   const successful = EVENTS.filter(({ key }) => state.events[key].status === "completed");
   const skipped = EVENTS.filter(({ key }) => state.events[key].status === "skipped");
-  const statusList = successful.map(({ key, title, payment }) => {
+  const statusList = successful.map(({ key, title }) => {
     const result = state.events[key].receipt;
-    return `<li><strong>${escapeHtml(title)}</strong> — Reference ${escapeHtml(result?.registrationId || state.events[key].registrationId)}${payment ? " · Payment Pending Verification" : ""}</li>`;
+    return `<li><strong>${escapeHtml(title)}</strong> — Reference ${escapeHtml(result?.registrationId || state.events[key].registrationId)}</li>`;
   }).join("");
   const skippedList = skipped.map(({ title }) => `<li>${escapeHtml(title)} — skipped</li>`).join("");
-  const links = EVENT_LINKS.map(({ name, url }) => `<a class="event-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(name)} <span aria-hidden="true">↗</span></a>`).join("");
+  const links = EVENT_LINKS.map(({ name, url }) => `<a class="event-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(name)}</strong><span class="button button-primary">Join WhatsApp group <span aria-hidden="true">↗</span></span></a>`).join("");
   return `<p class="eyebrow">REGISTRATION COMPLETE</p><h1>Thank You for Registering!</h1>
     <p class="intro">Thank you for being part of HTC Club, NIT Kurukshetra.<br><br>Your registration has been submitted successfully. We look forward to seeing you at the events.<br><br>Stay active, stay adventurous, and make memories with HTC!</p>
     <section class="card"><h2>Your registration summary</h2>
       ${successful.length ? `<h3>Successfully registered</h3><ul>${statusList}</ul>` : '<p class="muted">No event registrations were submitted.</p>'}
       ${skipped.length ? `<h3>Skipped events</h3><ul>${skippedList}</ul>` : ""}
       <h2 style="margin-top:26px">Explore the events</h2><div class="event-card-grid">${links}</div>
-      <div class="button-row"><button class="button button-secondary" data-go-stage="treasure" type="button">Back to registration</button></div>
     </section>`;
 }
 
@@ -275,9 +269,9 @@ function validateForSubmit(key) {
   if (state.events[key].status === "completed") return "This event has already been saved.";
   if (data.teamSize && selected.length !== data.teamSize) return `Select exactly ${data.teamSize} participants.`;
   if (data.individual && selected.length < 1) return "Select at least one participant.";
+  if (!state.collegeName.trim()) return "Add your college name in Student Details first.";
   if (key !== "cyclothon" && !state.teamName.trim()) return "Add a team name in Student Details first.";
   if (key === "treasure" && !state.eligibilityConfirmed) return "Confirm the Treasure Hunt eligibility declaration before submitting.";
-  if (key === "cricket" && !state.events.cricket.screenshotReference && !selectedScreenshot) return "Choose the Cricket payment screenshot before submitting.";
   if (selected.length !== new Set(selected).size) return "A participant can only be selected once.";
   const selectedStudents = selected.map((id) => state.students.find((student) => student.id === id)).filter(Boolean);
   if (selectedStudents.length !== selected.length) return "A selected participant is no longer available. Review the participant list.";
@@ -299,44 +293,13 @@ async function submitEvent(key) {
   }
   const eventState = state.events[key];
   if (!eventState.registrationId) eventState.registrationId = crypto.randomUUID();
-  if (key === "cricket" && selectedScreenshot && !eventState.uploadId) eventState.uploadId = crypto.randomUUID();
-  if (!eventState.payload || (key === "cricket" && eventState.payload.screenshotReference !== eventState.screenshotReference)) {
-    eventState.payload = registrationPayload(key, eventState.registrationId, state, eventState.screenshotReference);
-  }
+  if (!eventState.payload) eventState.payload = registrationPayload(key, eventState.registrationId, state);
   eventState.payload = normalizeRegistrationPayloadEvent(key, eventState.payload);
+  eventState.payload.collegeName = state.collegeName.trim();
   submittingEvents.add(key);
   saveDraft();
   render();
-  const paymentInfo = app.querySelector(".payment-info");
-  if (key === "cricket" && selectedScreenshot && !eventState.screenshotReference && paymentInfo) {
-    const progress = document.createElement("p");
-    progress.className = "status-message";
-    progress.setAttribute("role", "status");
-    progress.innerHTML = '<span class="spinner" aria-hidden="true"></span> Uploading screenshot securely…';
-    paymentInfo.append(progress);
-  }
   try {
-    if (key === "cricket" && !eventState.screenshotReference) {
-      if (!selectedScreenshot) throw new AppsScriptRequestError("Choose the payment screenshot again to continue.");
-      eventState.uploadPending = true;
-      saveDraft();
-      const uploaded = await uploadPaymentScreenshot(selectedScreenshot, eventState.registrationId, eventState.uploadId);
-      const screenshotReference = screenshotReferenceFromResponse(uploaded);
-      if (uploaded.success !== true || !screenshotReference) {
-        if (uploaded.requiresNewUploadId === true) {
-          eventState.uploadId = crypto.randomUUID();
-          eventState.uploadPending = false;
-        }
-        throw new AppsScriptRequestError(uploaded.message || "The screenshot upload was not confirmed. Retry safely.", {
-          response: uploaded,
-        });
-      }
-      eventState.uploadPending = false;
-      eventState.screenshotReference = screenshotReference;
-      eventState.payload.screenshotReference = screenshotReference;
-      saveDraft();
-    }
-    render();
     const result = await appsScriptRequest(eventState.payload);
     if (!confirmedRegistrationResponse(result)) {
       throw new AppsScriptRequestError(result.message || "The backend did not confirm that this registration was saved.", { response: result });
@@ -348,20 +311,16 @@ async function submitEvent(key) {
     state.currentStage = nextIndex === STAGES.length ? "thankyou" : STAGES[nextIndex].key;
     saveDraft();
     submittingEvents.delete(key);
-    selectedScreenshot = null;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = "";
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     submittingEvents.delete(key);
     if (error instanceof AppsScriptRequestError && !error.uncertain && error.response?.success === false) {
       eventState.payload = null;
-      eventState.uploadPending = false;
     }
     saveDraft();
     const warning = error.uncertain
-      ? `${error.message} Your draft, registration ID, and any uploaded screenshot reference are retained.`
+      ? `${error.message} Your draft, college name, and registration ID are retained.`
       : `${error.message} Your form data and registration ID are retained.`;
     app.innerHTML = `${renderProgress()}${renderEvent(key, warning)}`;
   }
@@ -397,7 +356,7 @@ function onStudentModalSubmit(event) {
 
 function renderAdminResults(data) {
   const target = document.querySelector("#admin-results");
-  target.innerHTML = `<table><thead><tr><th>EVENT</th><th>TEAM / REGISTRATION</th><th>ROLL NUMBER</th><th>STUDENT</th><th>PAYMENT</th><th>SCREENSHOT</th></tr></thead><tbody>${data.registrations.map((row) => `<tr><td>${escapeHtml(row.event)}</td><td>${escapeHtml(row.teamName || row.registrationId)}</td><td>${escapeHtml(row.rollNumber)}</td><td>${escapeHtml(row.studentName)}</td><td>${escapeHtml(row.paymentStatus || "—")}</td><td>${row.screenshotKey ? `<button type="button" data-admin-screenshot="${escapeAttribute(row.screenshotKey)}">Open securely</button>` : "—"}</td></tr>`).join("")}</tbody></table>${data.registrations.length ? "" : '<p class="muted">No matching registrations.</p>'}`;
+  target.innerHTML = `<table><thead><tr><th>EVENT</th><th>TEAM / REGISTRATION</th><th>COLLEGE</th><th>ROLL NUMBER</th><th>STUDENT</th><th>PAYMENT</th><th>SCREENSHOT</th></tr></thead><tbody>${data.registrations.map((row) => `<tr><td>${escapeHtml(row.event)}</td><td>${escapeHtml(row.teamName || row.registrationId)}</td><td>${escapeHtml(row.collegeName || "—")}</td><td>${escapeHtml(row.rollNumber)}</td><td>${escapeHtml(row.studentName)}</td><td>${escapeHtml(row.paymentStatus || "—")}</td><td>${row.screenshotKey ? `<button type="button" data-admin-screenshot="${escapeAttribute(row.screenshotKey)}">Open securely</button>` : "—"}</td></tr>`).join("")}</tbody></table>${data.registrations.length ? "" : '<p class="muted">No matching registrations.</p>'}`;
 }
 
 async function adminStatus() {
@@ -439,10 +398,15 @@ app.addEventListener("click", async (event) => {
   if (target.hasAttribute("data-details-next")) {
     const name = document.querySelector("#team-name").value.trim();
     if (!name || !state.students.length) {
-      app.innerHTML = `${renderProgress()}${renderDetails("Enter a team name and add at least one complete student record.")}`;
+      app.innerHTML = `${renderProgress()}${renderDetails("Enter a team name, college name, and add at least one complete student record.")}`;
       return;
     }
     state.teamName = name;
+    state.collegeName = document.querySelector("#college-name").value.trim();
+    if (!state.collegeName) {
+      app.innerHTML = `${renderProgress()}${renderDetails("Enter your college name before continuing.")}`;
+      return;
+    }
     state.events.cricket.status = "upcoming";
     state.currentStage = "cricket";
     saveDraft();
@@ -458,16 +422,6 @@ app.addEventListener("click", async (event) => {
     render();
   }
   if (target.dataset.submitEvent) submitEvent(target.dataset.submitEvent);
-  if (target.hasAttribute("data-remove-screenshot")) {
-    selectedScreenshot = null;
-    state.events.cricket.screenshotReference = "";
-    state.events.cricket.uploadId = "";
-    state.events.cricket.payload = null;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = "";
-    saveDraft();
-    render();
-  }
   if (target.hasAttribute("data-admin-refresh")) adminStatus();
   if (target.hasAttribute("data-admin-search")) adminSearch();
   if (target.hasAttribute("data-admin-download")) {
@@ -497,11 +451,12 @@ app.addEventListener("click", async (event) => {
 
 app.addEventListener("change", (event) => {
   const target = event.target;
-  if (target.matches("#team-name")) {
-    state.teamName = target.value;
+  if (target.matches("#team-name, #college-name")) {
+    if (target.matches("#team-name")) state.teamName = target.value;
+    if (target.matches("#college-name")) state.collegeName = target.value;
     saveDraft();
     const next = app.querySelector("[data-details-next]");
-    if (next) next.disabled = !target.value.trim() || state.students.length === 0;
+    if (next) next.disabled = !state.teamName.trim() || !state.collegeName.trim() || state.students.length === 0;
   }
   if (target.matches("[data-select-student]")) {
     const eventKey = state.currentStage;
@@ -521,32 +476,15 @@ app.addEventListener("change", (event) => {
     state.eligibilityConfirmed = target.checked;
     saveDraft();
   }
-  if (target.matches("#payment-file")) {
-    const file = target.files[0];
-    const validationError = validateScreenshot(file);
-    if (validationError) {
-      showMessage(validationError);
-      target.value = "";
-      return;
-    }
-    selectedScreenshot = file;
-    const eventState = state.events.cricket;
-    eventState.screenshotReference = "";
-    if (!eventState.uploadPending || !eventState.uploadId) eventState.uploadId = crypto.randomUUID();
-    eventState.payload = null;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = URL.createObjectURL(file);
-    saveDraft();
-    render();
-  }
 });
 
 app.addEventListener("input", (event) => {
-  if (event.target.matches("#team-name")) {
-    state.teamName = event.target.value;
+  if (event.target.matches("#team-name, #college-name")) {
+    if (event.target.matches("#team-name")) state.teamName = event.target.value;
+    if (event.target.matches("#college-name")) state.collegeName = event.target.value;
     saveDraft();
     const next = app.querySelector("[data-details-next]");
-    if (next) next.disabled = !event.target.value.trim() || state.students.length === 0;
+    if (next) next.disabled = !state.teamName.trim() || !state.collegeName.trim() || state.students.length === 0;
   }
 });
 

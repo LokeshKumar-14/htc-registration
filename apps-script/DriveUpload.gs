@@ -11,19 +11,7 @@ function handleDriveScreenshotUploadRequest_(e) {
     return null;
   }
   if (!payload) return null;
-  if (payload.action !== "uploadScreenshot") {
-    if (payload.event !== "cricket") return null;
-    if (payload.paymentAmount !== 50) {
-      return driveUploadJsonResponse_({ success: false, message: "Cricket payment must be ₹50 per team." });
-    }
-    if (!isUploadedScreenshotReference_(payload.registrationId, payload.screenshotReference)) {
-      return driveUploadJsonResponse_({
-        success: false,
-        message: "Upload a valid Cricket payment screenshot before submitting registration.",
-      });
-    }
-    return null;
-  }
+  if (payload.action !== "uploadScreenshot") return null;
 
   if (payload.event !== "cricket") {
     return driveUploadJsonResponse_({ success: false, message: "Screenshot uploads are only supported for Cricket." });

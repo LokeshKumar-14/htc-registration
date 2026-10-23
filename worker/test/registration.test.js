@@ -15,6 +15,7 @@ const teamPayload = (event, count, extra = {}) => ({
   registrationId: "11111111-1111-4111-8111-111111111111",
   event,
   teamName: "HTC Team",
+  collegeName: "NIT Kurukshetra",
   participants: Array.from({ length: count }, (_, index) => student(`23${String(index + 1).padStart(2, "0")}`)),
   ...extra,
 });
@@ -26,16 +27,26 @@ test("workbook initializes exactly the four required worksheets", async () => {
   assert.equal(workbook.getWorksheet("Cricket").getRow(1).getCell(1).value, "Registration ID");
 });
 
-test("validates exact team sizes, payment reference and eligibility declaration", () => {
-  assert.equal(validateRegistration(teamPayload("Cricket", 5, {
-    screenshotKey: "payments/11111111-1111-4111-8111-111111111111/screenshot.jpg",
-  })).participants.length, 5);
-  assert.throws(() => validateRegistration(teamPayload("Cricket", 4, {
-    screenshotKey: "payments/11111111-1111-4111-8111-111111111111/screenshot.jpg",
-  })), /exactly 5/);
-  assert.throws(() => validateRegistration(teamPayload("Cricket", 5)), /payment screenshot/);
+test("validates exact team sizes, college name and eligibility declaration", () => {
+  const cricket = validateRegistration(teamPayload("Cricket", 5));
+  assert.equal(cricket.participants.length, 5);
+  assert.equal(cricket.collegeName, "NIT Kurukshetra");
+  assert.equal(cricket.screenshotKey, "");
+  assert.throws(() => validateRegistration(teamPayload("Cricket", 4)), /exactly 5/);
+  assert.throws(() => validateRegistration(teamPayload("Cricket", 5, { collegeName: "" })), /college name/);
   assert.throws(() => validateRegistration(teamPayload("Treasure Hunt", 4)), /eligibility declaration/);
   assert.equal(validateRegistration(teamPayload("Treasure Hunt", 4, { eligibilityConfirmed: true })).participants.length, 4);
+});
+
+test("writes Cricket registrations as free and stores the college name", async () => {
+  const workbook = await createWorkbook();
+  const registration = validateRegistration(teamPayload("Cricket", 5));
+  applyRegistration(workbook, registration);
+  const sheet = workbook.getWorksheet("Cricket");
+  assert.equal(sheet.getCell(4, 8).value, "");
+  assert.equal(sheet.getCell(4, 9).value, "");
+  assert.equal(sheet.getCell(4, 11).value, "");
+  assert.equal(sheet.getCell(4, 13).value, "NIT Kurukshetra");
 });
 
 test("writes team headings and participant rows with a blank team separator", async () => {
@@ -53,6 +64,7 @@ test("writes team headings and participant rows with a blank team separator", as
   assert.equal(sheet.getCell(2, 1).value, "Team Name: HTC Team");
   assert.equal(sheet.getCell(3, 1).value, "Registration ID");
   assert.equal(sheet.getCell(4, 1).value, first.registrationId);
+  assert.equal(sheet.getCell(4, 13).value, "NIT Kurukshetra");
   assert.equal(sheet.getCell(9, 1).value, null);
   assert.equal(sheet.getCell(10, 1).value, "Team Name: Second Team");
 });
@@ -162,6 +174,7 @@ test("simultaneous registrations survive GitHub SHA conflicts and retries stay i
       registrationId,
       event: "Football",
       teamName: `Team ${prefix}`,
+      collegeName: "NIT Kurukshetra",
       participants: Array.from({ length: 5 }, (_, index) => student(`${prefix}${String(index + 1).padStart(3, "0")}`)),
     }),
   });
@@ -232,6 +245,7 @@ test("failed workbook writes are not reported as success and the same ID can be 
     registrationId: "33333333-3333-4333-8333-333333333333",
     event: "Cyclothon",
     teamName: "",
+    collegeName: "NIT Kurukshetra",
     participants: [student("25001")],
   };
   const makeRequest = () => new Request("https://api.example/api/register", {
