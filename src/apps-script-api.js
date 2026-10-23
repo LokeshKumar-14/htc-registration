@@ -11,6 +11,7 @@ const YEAR_VALUES = {
   "1st Year": "1st",
   "2nd Year": "2nd",
   "3rd Year": "3rd",
+  "4th Year": "4th",
 };
 
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;

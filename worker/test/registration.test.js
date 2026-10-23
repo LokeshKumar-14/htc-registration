@@ -38,6 +38,13 @@ test("validates exact team sizes, college name and eligibility declaration", () 
   assert.equal(validateRegistration(teamPayload("Treasure Hunt", 4, { eligibilityConfirmed: true })).participants.length, 4);
 });
 
+test("accepts and stores fourth-year participants", () => {
+  const payload = teamPayload("Football", 5);
+  payload.participants[0].year = "4th Year";
+  const registration = validateRegistration(payload);
+  assert.equal(registration.participants[0].year, "4th Year");
+});
+
 test("writes Cricket registrations as free and stores the college name", async () => {
   const workbook = await createWorkbook();
   const registration = validateRegistration(teamPayload("Cricket", 5));

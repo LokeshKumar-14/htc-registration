@@ -83,7 +83,7 @@ function validateRegistration(body) {
     if (fullName.length < 2 || fullName.length > 100) throw new Error("A participant has an invalid name.");
     if (!/^(?:\+91)?[6-9]\d{9}$/.test(phone)) throw new Error("A participant has an invalid Indian phone number.");
     if (!branch || branch.length > 80) throw new Error("A participant has an invalid branch.");
-    if (!["1st Year", "2nd Year", "3rd Year"].includes(year)) throw new Error("A participant has an invalid year.");
+    if (!["1st Year", "2nd Year", "3rd Year", "4th Year"].includes(year)) throw new Error("A participant has an invalid year.");
     const normalizedRoll = rollNumber.toLowerCase();
     if (seenRollNumbers.has(normalizedRoll)) throw new Error("Duplicate participant roll numbers are not allowed.");
     seenRollNumbers.add(normalizedRoll);

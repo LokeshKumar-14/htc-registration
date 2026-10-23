@@ -170,7 +170,11 @@ function renderThanks() {
   const unregisteredEvents = unregistered.map(({ key, title }) =>
     `<button class="button button-secondary" type="button" data-go-stage="${escapeHtml(key)}">Register for ${escapeHtml(title)} <span aria-hidden="true">→</span></button>`,
   ).join("");
-  const links = EVENT_LINKS.map(({ name, url }) => `<a class="event-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(name)}</strong><span class="button button-primary">Join WhatsApp group <span aria-hidden="true">↗</span></span></a>`).join("");
+  const availableGroupLinks = EVENT_LINKS.filter(({ name }) => {
+    const event = EVENTS.find(({ title }) => title === name);
+    return event && state.events[event.key].status !== "skipped";
+  });
+  const links = availableGroupLinks.map(({ name, url }) => `<a class="event-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(name)}</strong><span class="button button-primary">Join WhatsApp group <span aria-hidden="true">↗</span></span></a>`).join("");
   return `<p class="eyebrow">REGISTRATION COMPLETE</p><h1>Thank You for Registering!</h1>
     <a class="instagram-follow" href="https://www.instagram.com/htc.nitkkr?vrfl=YXp6aGQycGJrcWZ6" target="_blank" rel="noopener noreferrer">Follow our Instagram page <span aria-hidden="true">↗</span></a>
     <p class="intro">Thank you for being part of HTC Club, NIT Kurukshetra.<br><br>Your registration has been submitted successfully. We look forward to seeing you at the events.<br><br>Stay active, stay adventurous, and make memories with HTC!</p>
@@ -178,7 +182,7 @@ function renderThanks() {
       ${successful.length ? `<h3>Successfully registered</h3><ul>${statusList}</ul>` : '<p class="muted">No event registrations were submitted.</p>'}
       ${skipped.length ? `<h3>Skipped events</h3><ul>${skippedList}</ul>` : ""}
       ${unregistered.length ? `<h2 style="margin-top:26px">Register for another event</h2><p class="muted">You can still register for these events:</p><div class="button-row event-registration-links">${unregisteredEvents}</div>` : ""}
-      <h2 style="margin-top:26px">Explore the events</h2><div class="event-card-grid">${links}</div>
+      ${availableGroupLinks.length ? `<h2 style="margin-top:26px">Explore the events</h2><div class="event-card-grid">${links}</div>` : ""}
     </section>`;
 }
 
@@ -229,7 +233,7 @@ function validateStudent(form) {
   if (student.fullName.length < 2 || student.fullName.length > 100) return { error: "Enter a full name between 2 and 100 characters." };
   if (!/^(?:\+91[\s-]?)?[6-9]\d{9}$/.test(student.phone.replace(/[\s()-]/g, ""))) return { error: "Enter a valid 10-digit Indian phone number." };
   if (!student.branch || student.branch.length > 80) return { error: "Select or enter a valid branch." };
-  if (!["1st Year", "2nd Year", "3rd Year"].includes(student.year)) return { error: "Select a year." };
+  if (!["1st Year", "2nd Year", "3rd Year", "4th Year"].includes(student.year)) return { error: "Select a year." };
   const duplicate = state.students.some((item) => item.id !== editingStudentId && item.rollNumber.toLowerCase() === student.rollNumber.toLowerCase());
   if (duplicate) return { error: "A participant with this roll number is already in the draft." };
   return { student };

@@ -61,6 +61,13 @@ test("maps frontend event and participant fields to the Apps Script schema", () 
   assert.equal(payload.teamName, "HTC Warriors");
 });
 
+test("maps a fourth-year student to the Apps Script year value", () => {
+  const state = sampleState("cyclothon", ["a"]);
+  state.students[0].year = "4th Year";
+  const payload = registrationPayload("cyclothon", "11111111-1111-4111-8111-111111111111", state);
+  assert.equal(payload.participants[0].year, "4th");
+});
+
 test("all frontend event keys serialize to exact Apps Script event keys", () => {
   const cases = [
     ["cricket", "cricket", ["a", "b", "c", "d", "e"]],
