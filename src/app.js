@@ -43,10 +43,11 @@ function loadDraft() {
       currentStage: [...STAGES.map(({ key }) => key), "thankyou"].includes(saved.currentStage) ? saved.currentStage : "details",
       events,
       eligibilityConfirmed: saved.eligibilityConfirmed === true,
+      boyEligibilityConfirmed: saved.boyEligibilityConfirmed === true,
     };
   } catch (error) {
     console.error("Could not restore registration draft:", error);
-    return { teamName: "", collegeName: "", students: [], currentStage: "details", events: Object.fromEntries(EVENTS.map(({ key }) => [key, blankEvent()])), eligibilityConfirmed: false };
+    return { teamName: "", collegeName: "", students: [], currentStage: "details", events: Object.fromEntries(EVENTS.map(({ key }) => [key, blankEvent()])), eligibilityConfirmed: false, boyEligibilityConfirmed: false };
   }
 }
 
@@ -137,7 +138,9 @@ function renderEvent(event, message = "") {
     const tel = phone.replace(/[^\d+]/g, "");
     return `<div class="event-contact"><span><strong>${escapeHtml(name)}</strong><small>${escapeHtml(phone)}</small></span><a class="button button-secondary" href="tel:${escapeHtml(tel)}" aria-label="Call ${escapeHtml(name)}">Call</a></div>`;
   }).join("")}</div>`;
-  const eligibility = data.key === "treasure" ? `<label class="checkbox-note"><input type="checkbox" data-eligibility ${state.eligibilityConfirmed ? "checked" : ""} ${saved ? "disabled" : ""}><span>I confirm that my team includes at least one girl. This is a self-declaration; eligibility is not automatically gender-verified.</span></label>` : "";
+  const eligibility = data.key === "treasure" ? `
+    <label class="checkbox-note"><input type="checkbox" data-eligibility ${state.eligibilityConfirmed ? "checked" : ""} ${saved ? "disabled" : ""}><span>I confirm that my team includes at least one girl. This is a self-declaration; eligibility is not automatically gender-verified.</span></label>
+    <label class="checkbox-note"><input type="checkbox" data-boy-eligibility ${state.boyEligibilityConfirmed ? "checked" : ""} ${saved ? "disabled" : ""}><span>I confirm that my team includes at least one boy. This is a self-declaration; eligibility is not automatically gender-verified.</span></label>` : "";
   const receipt = saved ? `<p class="status-message">Registration saved successfully · Reference <strong>${escapeHtml(eventState.receipt?.registrationId || eventState.registrationId)}</strong></p>` : "";
   const nextStage = STAGES[STAGES.findIndex(({ key }) => key === event) + 1]?.key || "thankyou";
   const submitButton = saved
@@ -150,8 +153,8 @@ function renderEvent(event, message = "") {
       ${eventInfo}
       ${contacts}
       ${isTeamEvent ? `<p class="selection-count">${countLabel}: ${eventState.selected.length} / ${data.teamSize}</p>` : '<p class="selection-count">Select at least one participant</p>'}
+      <button type="button" class="button button-secondary" data-add-student>Add student</button>
       <div class="participant-list">${students || '<p class="muted">Add participants in Student Details before choosing an event.</p>'}</div>
-      ${data.key === "treasure" ? '<button type="button" class="button button-secondary" data-add-student>Add student</button>' : ""}
       ${eligibility}${receipt}
       ${message ? `<p class="status-message error" role="alert">${escapeHtml(message)}</p>` : ""}
       <div class="button-row"><button class="button button-secondary" type="button" data-skip ${saved || eventState.payload || submittingEvents.has(event) ? "disabled" : ""}>Skip event</button>${submitButton}</div>
@@ -174,15 +177,15 @@ function renderThanks() {
     const event = EVENTS.find(({ title }) => title === name);
     return event && state.events[event.key].status !== "skipped";
   });
-  const links = availableGroupLinks.map(({ name, url }) => `<a class="event-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(name)}</strong><span class="button button-primary">Join WhatsApp group <span aria-hidden="true">↗</span></span></a>`).join("");
+  const links = availableGroupLinks.map(({ name, url }) => `<a class="event-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(name)}</strong><span class="button button-primary"><svg class="whatsapp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3.5A11.8 11.8 0 0 0 12.1 0C5.6 0 .3 5.3.3 11.8c0 2.1.5 4.1 1.6 5.9L.2 24l6.5-1.7a11.8 11.8 0 0 0 5.4 1.3h.1c6.5 0 11.8-5.3 11.8-11.8 0-3.1-1.2-6.1-3.5-8.3ZM12.1 21.6c-1.7 0-3.4-.5-4.9-1.3l-.4-.2-3.9 1 1-3.8-.2-.4a9.7 9.7 0 0 1-1.5-5.1c0-5.4 4.4-9.8 9.8-9.8a9.7 9.7 0 0 1 6.9 2.9 9.7 9.7 0 0 1 2.9 6.9c0 5.4-4.4 9.8-9.8 9.8Zm5.4-7.3c-.3-.1-1.7-.8-2-.9-.3-.1-.5-.1-.7.2-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.4.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5 0-.1-.7-1.6-1-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.1 3c.1.2 2 3.1 4.8 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.7-.7 1.9-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.3Z"/></svg>Join WhatsApp group <span aria-hidden="true">↗</span></span></a>`).join("");
   return `<p class="eyebrow">REGISTRATION COMPLETE</p><h1>Thank You for Registering!</h1>
-    <a class="instagram-follow" href="https://www.instagram.com/htc.nitkkr?vrfl=YXp6aGQycGJrcWZ6" target="_blank" rel="noopener noreferrer">Follow our Instagram page <span aria-hidden="true">↗</span></a>
     <p class="intro">Thank you for being part of HTC Club, NIT Kurukshetra.<br><br>Your registration has been submitted successfully. We look forward to seeing you at the events.<br><br>Stay active, stay adventurous, and make memories with HTC!</p>
+    ${availableGroupLinks.length ? `<section class="card whatsapp-groups"><h2>Join the event WhatsApp groups</h2><div class="event-card-grid">${links}</div></section>` : ""}
+    <a class="instagram-follow" href="https://www.instagram.com/htc.nitkkr?vrfl=YXp6aGQycGJrcWZ6" target="_blank" rel="noopener noreferrer">Follow our Instagram page <span aria-hidden="true">↗</span></a>
     <section class="card"><h2>Your registration summary</h2>
       ${successful.length ? `<h3>Successfully registered</h3><ul>${statusList}</ul>` : '<p class="muted">No event registrations were submitted.</p>'}
       ${skipped.length ? `<h3>Skipped events</h3><ul>${skippedList}</ul>` : ""}
       ${unregistered.length ? `<h2 style="margin-top:26px">Register for another event</h2><p class="muted">You can still register for these events:</p><div class="button-row event-registration-links">${unregisteredEvents}</div>` : ""}
-      ${availableGroupLinks.length ? `<h2 style="margin-top:26px">Explore the events</h2><div class="event-card-grid">${links}</div>` : ""}
     </section>`;
 }
 
@@ -287,6 +290,7 @@ function validateForSubmit(key) {
   if (!state.collegeName.trim()) return "Add your college name in Student Details first.";
   if (key !== "cyclothon" && !state.teamName.trim()) return "Add a team name in Student Details first.";
   if (key === "treasure" && !state.eligibilityConfirmed) return "Confirm the Treasure Hunt eligibility declaration before submitting.";
+  if (key === "treasure" && !state.boyEligibilityConfirmed) return "Confirm that your Treasure Hunt team includes at least one boy.";
   if (selected.length !== new Set(selected).size) return "A participant can only be selected once.";
   const selectedStudents = selected.map((id) => state.students.find((student) => student.id === id)).filter(Boolean);
   if (selectedStudents.length !== selected.length) return "A selected participant is no longer available. Review the participant list.";
@@ -309,6 +313,10 @@ async function submitEvent(key) {
   const eventState = state.events[key];
   if (!eventState.registrationId) eventState.registrationId = crypto.randomUUID();
   if (!eventState.payload) eventState.payload = registrationPayload(key, eventState.registrationId, state);
+  if (key === "treasure") {
+    eventState.payload.girlEligibilityConfirmed = state.eligibilityConfirmed === true;
+    eventState.payload.boyEligibilityConfirmed = state.boyEligibilityConfirmed === true;
+  }
   eventState.payload = normalizeRegistrationPayloadEvent(key, eventState.payload);
   eventState.payload.collegeName = state.collegeName.trim();
   submittingEvents.add(key);
@@ -490,6 +498,10 @@ app.addEventListener("change", (event) => {
   }
   if (target.matches("[data-eligibility]")) {
     state.eligibilityConfirmed = target.checked;
+    saveDraft();
+  }
+  if (target.matches("[data-boy-eligibility]")) {
+    state.boyEligibilityConfirmed = target.checked;
     saveDraft();
   }
 });

@@ -68,7 +68,10 @@ export function registrationPayload(eventKey, registrationId, state) {
       branch: participant.branch.trim(),
       year: YEAR_VALUES[participant.year] || participant.year,
     })),
-    ...(eventKey === "treasure" ? { girlEligibilityConfirmed: state.eligibilityConfirmed === true } : {}),
+    ...(eventKey === "treasure" ? {
+      girlEligibilityConfirmed: state.eligibilityConfirmed === true,
+      boyEligibilityConfirmed: state.boyEligibilityConfirmed === true,
+    } : {}),
   };
 }
 

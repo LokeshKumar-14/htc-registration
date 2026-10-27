@@ -18,7 +18,7 @@ The frontend posts JSON using `Content-Type: text/plain;charset=UTF-8` to avoid 
 
 The complete Apps Script registration source is in `apps-script/Code.gs`. It requires and saves `collegeName`, accepts Cricket registrations without payment or screenshot fields, and appends the college header to existing sheets without rewriting their existing data. `apps-script/DriveUpload.gs` must also be present in the Apps Script project because `doPost` dispatches its optional legacy upload handler.
 
-The Apps Script registration handler must accept and persist `collegeName` in addition to the existing registration fields. It must not require `paymentAmount` or `screenshotReference` for Cricket. The frontend sends event keys `cricket`, `football`, `cyclothon`, and `treasurehunt`; participant fields are `rollNumber`, `name`, `phone`, `branch`, and `year`. Treasure Hunt also sends `girlEligibilityConfirmed`. Year values are `1st`, `2nd`, `3rd`, and `4th`.
+The Apps Script registration handler must accept and persist `collegeName` in addition to the existing registration fields. It must not require `paymentAmount` or `screenshotReference` for Cricket. The frontend sends event keys `cricket`, `football`, `cyclothon`, and `treasurehunt`; participant fields are `rollNumber`, `name`, `phone`, `branch`, and `year`. Treasure Hunt also sends `girlEligibilityConfirmed` and `boyEligibilityConfirmed`. Year values are `1st`, `2nd`, `3rd`, and `4th`.
 
 `apps-script/DriveUpload.gs` may remain deployed for compatibility with old screenshot uploads. Its dispatch function returns `null` for normal registrations and no longer checks payment or screenshot fields. Adding or deploying this optional helper is not required for free Cricket registrations.
 
@@ -35,7 +35,7 @@ Deploy the Apps Script web app with the script owner as the executor. Keep the s
 1. Confirm the four event tabs are `Cricket`, `Football`, `Cyclothon`, and `Treasure Hunt`.
 2. Confirm `collegeName` is saved with each event registration.
 3. Confirm Cricket accepts a five-person team without payment or screenshot fields.
-4. Confirm team sizes, participant details, and Treasure Hunt eligibility are validated.
+4. Confirm team sizes, participant details, and both Treasure Hunt team eligibility declarations are validated.
 5. Confirm repeating a registration with the same ID does not append duplicate rows.
 6. Verify the WhatsApp links and call buttons from the deployed site.
 7. Test the deployed site from its actual origin using a test spreadsheet/deployment before accepting live registrations.

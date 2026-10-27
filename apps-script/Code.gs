@@ -55,6 +55,7 @@ const HEADERS = {
     "Branch",
     "Year",
     "Girl Eligibility Declaration",
+    "Boy Eligibility Declaration",
     "College Name"
   ]
 };
@@ -77,7 +78,7 @@ function setupSheets() {
       return;
     }
 
-    ensureCollegeNameHeader_(sheet);
+    ensureRegistrationHeaders_(sheet, eventKey);
   });
 
   return {
@@ -95,24 +96,32 @@ function styleHeader_(sheet, columnCount) {
   sheet.autoResizeColumns(1, columnCount);
 }
 
-function ensureCollegeNameHeader_(sheet) {
-  const lastColumn = sheet.getLastColumn();
+function ensureRegistrationHeaders_(sheet, eventKey) {
+  let lastColumn = sheet.getLastColumn();
   if (lastColumn < 1) {
     throw new Error("Could not find the existing sheet headers.");
   }
 
   const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
-  if (headers.indexOf("College Name") !== -1) {
-    return;
+  const requiredHeaders = ["College Name"];
+  if (eventKey === "treasurehunt") {
+    requiredHeaders.push("Boy Eligibility Declaration");
   }
 
-  const collegeColumn = lastColumn + 1;
-  sheet.getRange(1, collegeColumn).setValue("College Name");
-  sheet.getRange(1, collegeColumn)
-    .setFontWeight("bold")
-    .setBackground("#111111")
-    .setFontColor("#ffffff");
-  sheet.autoResizeColumn(collegeColumn);
+  requiredHeaders.forEach(function (header) {
+    if (headers.indexOf(header) !== -1) {
+      return;
+    }
+
+    lastColumn += 1;
+    sheet.getRange(1, lastColumn).setValue(header);
+    sheet.getRange(1, lastColumn)
+      .setFontWeight("bold")
+      .setBackground("#111111")
+      .setFontColor("#ffffff");
+    sheet.autoResizeColumn(lastColumn);
+    headers.push(header);
+  });
 }
 
 function doGet() {
@@ -147,7 +156,7 @@ function doPost(e) {
       throw new Error("Sheet not found. Run setupSheets() first.");
     }
 
-    ensureCollegeNameHeader_(sheet);
+    ensureRegistrationHeaders_(sheet, eventKey);
 
     const registrationId = String(data.registrationId).trim();
     if (registrationExists_(sheet, registrationId)) {
@@ -237,6 +246,9 @@ function validateRequest_(data) {
     if (data.girlEligibilityConfirmed !== true) {
       throw new Error("Confirm that your team includes at least one girl.");
     }
+    if (data.boyEligibilityConfirmed !== true) {
+      throw new Error("Confirm that your team includes at least one boy.");
+    }
   }
 
   if (event === "cyclothon" && participants.length > 100) {
@@ -315,6 +327,9 @@ function createRows_(eventKey, data, timestamp, sheet) {
       "Year": participant.year,
       "College Name": data.collegeName.trim(),
       "Girl Eligibility Declaration": eventKey === "treasurehunt"
+        ? "Confirmed by registrant"
+        : "",
+      "Boy Eligibility Declaration": eventKey === "treasurehunt"
         ? "Confirmed by registrant"
         : "",
       "Payment Amount": "",
